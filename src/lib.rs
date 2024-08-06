@@ -187,7 +187,7 @@ pub fn buffer_polygon(input_polygon: &Polygon, distance: f64) -> MultiPolygon {
 /// # Example
 ///
 /// ```
-/// use geo_buffer::buffer_polygon;
+/// use geo_buffer::buffer_polygon_rounded;
 /// use geo::{Polygon, MultiPolygon, LineString};
 ///
 /// let p1 = Polygon::new(
@@ -255,7 +255,7 @@ pub fn buffer_multi_polygon(input_multi_polygon: &MultiPolygon, distance: f64) -
 /// # Example
 ///
 /// ```
-/// use geo_buffer::buffer_polygon;
+/// use geo_buffer::buffer_multi_polygon;
 /// use geo::{Polygon, MultiPolygon, LineString};
 ///
 /// let p1 = Polygon::new(
@@ -309,7 +309,7 @@ pub fn buffer_multi_polygon_rounded(
 /// # Example
 ///
 /// ```
-/// use geo_buffer::buffer_polygon;
+/// use geo_buffer::skeleton_of_polygon_to_linestring;
 /// use geo::{Polygon, MultiPolygon, LineString};
 ///
 /// let p1 = Polygon::new(
@@ -347,7 +347,7 @@ pub fn skeleton_of_polygon_to_linestring(
 /// # Example
 ///
 /// ```
-/// use geo_buffer::buffer_polygon;
+/// use geo_buffer::skeleton_of_multi_polygon_to_linestring;
 /// use geo::{Polygon, MultiPolygon, LineString};
 ///
 /// let p1 = Polygon::new(

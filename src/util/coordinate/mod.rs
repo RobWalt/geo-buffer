@@ -240,7 +240,7 @@ impl Coordinate {
     /// let c2 = geo_buffer::Coordinate::new(0.2, 0.3);
     /// let c3 = geo_buffer::Coordinate::new(0.3, 0.5);
     /// let c4 = c1 + c2;
-    /// assert!(c3.eq(&c4));
+    /// assert!(c3.equal(&c4));
     /// ```
     ///
     /// # Example (this example panics)

@@ -73,7 +73,7 @@ impl Ray {
     /// let c2 = (2., 3.).into();
     /// let r1 = Ray::new(c1, c2);
     ///
-    /// assert!(c1.eq(&r1.point()));
+    /// assert!(c1.equal(&r1.point()));
     ///
     /// ```
     pub fn point(&self) -> Coordinate {
@@ -91,7 +91,7 @@ impl Ray {
     /// let c2 = (2., 3.).into();
     /// let r1 = Ray::new(c1, c2);
     ///
-    /// assert!(r1.point_by_ratio(2.).eq(&(3., 4.).into()));
+    /// assert!(r1.point_by_ratio(2.).equal(&(3., 4.).into()));
     /// ```
     pub fn point_by_ratio(&self, ratio: f64) -> Coordinate {
         self.origin + self.angle * ratio
@@ -205,7 +205,7 @@ impl Ray {
     /// let r1 = Ray::new(c1, c2);
     /// let r2 = Ray::new(c3, c4);
     ///
-    /// assert!(r1.intersect(&r2).eq(&(2., 2.).into()));
+    /// assert!(r1.intersect(&r2).equal(&(2., 2.).into()));
     ///
     /// ```
     pub fn intersect(&self, rhs: &Ray) -> Coordinate {
@@ -271,7 +271,7 @@ impl Ray {
     /// let mut r1 = Ray::new(c1, c2);
     /// r1.normalize();
     ///
-    /// assert!(r1.point_by_ratio(1.).eq(&(0.6, 0.8).into()));
+    /// assert!(r1.point_by_ratio(1.).equal(&(0.6, 0.8).into()));
     /// ```
     pub fn normalize(&mut self) {
         if self.is_degenerated() {
@@ -304,7 +304,7 @@ impl Ray {
     /// let r1 = Ray::new(c1, c2);
     /// let r2 = r1.reverse();
     ///
-    /// assert!(r2.point_by_ratio(1.).eq(&(-3., -4.).into()));
+    /// assert!(r2.point_by_ratio(1.).equal(&(-3., -4.).into()));
     /// ```
     pub fn reverse(&self) -> Self {
         Self {
@@ -326,7 +326,7 @@ impl Ray {
     /// let r1 = Ray::new(c1, c2);
     /// let r2 = r1.rotate_by(std::f64::consts::PI/2.);
     ///
-    /// assert!(r2.point_by_ratio(1.).eq(&(-4., 3.).into()));
+    /// assert!(r2.point_by_ratio(1.).equal(&(-4., 3.).into()));
     /// ```
     pub fn rotate_by(&self, angle: f64) -> Self {
         let nx = self.angle.0 * f64::cos(angle) - self.angle.1 * f64::sin(angle);
