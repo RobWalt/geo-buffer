@@ -93,36 +93,38 @@ impl VertexType {
     }
 
     fn initialize_from_polygon_vector(input_polygon_vector: &[Polygon], orient: bool) -> Vec<Self> {
-        let mut ret = Vec::new();
-        for p in input_polygon_vector {
-            let len = p.exterior().0.len() - 1;
-            for cur in 0..len {
-                let prv = (cur + len - 1) % len;
-                let nxt = (cur + 1) % len;
-                let new_vertex = VertexType::init_tree_vertex(
-                    p.exterior().0[prv].into(),
-                    p.exterior().0[cur].into(),
-                    p.exterior().0[nxt].into(),
-                    orient,
-                );
-                ret.push(new_vertex);
-            }
-            for i in 0..p.interiors().len() {
-                let len = p.interiors()[i].0.len() - 1;
-                for cur in 0..len {
-                    let prv = (cur + len - 1) % len;
-                    let nxt = (cur + 1) % len;
-                    let new_node = VertexType::init_tree_vertex(
-                        p.interiors()[i].0[prv].into(),
-                        p.interiors()[i].0[cur].into(),
-                        p.interiors()[i].0[nxt].into(),
-                        orient,
-                    );
-                    ret.push(new_node);
-                }
-            }
+        fn helper_prv_and_nxt(cur: usize, len: usize) -> [usize; 3] {
+            let prv = (cur + len - 1) % len;
+            let nxt = (cur + 1) % len;
+            [prv, cur, nxt]
         }
-        ret
+
+        fn helper_vertex_from_idxs(
+            coords: &[geo::Coord],
+            [prv, cur, nxt]: [usize; 3],
+            orient: bool,
+        ) -> VertexType {
+            VertexType::init_tree_vertex(
+                coords[prv].into(),
+                coords[cur].into(),
+                coords[nxt].into(),
+                orient,
+            )
+        }
+
+        input_polygon_vector
+            .iter()
+            .flat_map(|p| {
+                std::iter::once(p.exterior())
+                    .chain(p.interiors())
+                    .flat_map(|int| {
+                        let len = int.0.len() - 1;
+                        (0..len)
+                            .map(move |cur| helper_prv_and_nxt(cur, len))
+                            .map(|idxs| helper_vertex_from_idxs(&int.0, idxs, orient))
+                    })
+            })
+            .collect::<Vec<_>>()
     }
 
     fn unwrap_location(&self) -> Coordinate {
@@ -331,7 +333,6 @@ impl Skeleton {
         vertex_queue: &VertexQueue,
         offset_distance: f64,
     ) -> MultiPolygon {
-        let mut res = Vec::new();
         let mut lsv = Vec::new();
         let mut crdv = Vec::new();
         let mut cur_vidx = usize::MAX;
@@ -355,23 +356,8 @@ impl Skeleton {
             ls.close();
             lsv.push(ls);
         }
-        for ls in &lsv {
-            if ls.winding_order() == Some(WindingOrder::CounterClockwise) {
-                let p1: Polygon = Polygon::new(ls.clone(), vec![]);
-                res.push(p1);
-            }
-        }
-        for ls in &lsv {
-            if ls.winding_order() == Some(WindingOrder::Clockwise) {
-                for e in &mut res {
-                    if e.contains(ls) {
-                        e.interiors_push(ls.clone());
-                        break;
-                    }
-                }
-            }
-        }
-        MultiPolygon::new(res)
+
+        multipolygon_from_linestrings(lsv)
     }
 
     pub(crate) fn apply_vertex_queue_rounded(
@@ -380,7 +366,6 @@ impl Skeleton {
         offset_distance: f64,
     ) -> MultiPolygon {
         let orient = self.get_orientation();
-        let mut res = Vec::new();
         let mut lsv = Vec::new();
         let mut crdv = Vec::new();
         let mut cur_vidx = usize::MAX;
@@ -428,10 +413,16 @@ impl Skeleton {
                     let lcrd = left_normal.point_by_ratio(time_left);
                     crdv.push(lcrd);
                     left_normal = left_normal.rotate_by(if orient { 0.1 } else { -0.1 });
-                    if orient && left_normal.orientation(&right_normal.point_by_ratio(1.)) == -1 {
+                    if orient
+                        && left_normal.orientation(&right_normal.point_by_ratio(1.))
+                            == Orientation::After
+                    {
                         break;
                     }
-                    if !orient && left_normal.orientation(&right_normal.point_by_ratio(1.)) == 1 {
+                    if !orient
+                        && left_normal.orientation(&right_normal.point_by_ratio(1.))
+                            == Orientation::Before
+                    {
                         break;
                     }
                 }
@@ -443,23 +434,8 @@ impl Skeleton {
             ls.close();
             lsv.push(ls);
         }
-        for ls in &lsv {
-            if ls.winding_order() == Some(WindingOrder::CounterClockwise) {
-                let p1: Polygon = Polygon::new(ls.clone(), vec![]);
-                res.push(p1);
-            }
-        }
-        for ls in &lsv {
-            if ls.winding_order() == Some(WindingOrder::Clockwise) {
-                for e in &mut res {
-                    if e.contains(ls) {
-                        e.interiors_push(ls.clone());
-                        break;
-                    }
-                }
-            }
-        }
-        MultiPolygon::new(res)
+
+        multipolygon_from_linestrings(lsv)
     }
 
     pub(crate) fn get_vertex_queue(&self, time_elapsed: f64) -> VertexQueue {
@@ -478,7 +454,7 @@ impl Skeleton {
     fn get_orientation(&self) -> bool {
         let iz_ray = self.ray_vector[0].unwrap_ray();
         let iz_left = self.ray_vector[0].unwrap_base_ray().0;
-        iz_left.orientation(&iz_ray.point_by_ratio(1.)) == 1
+        iz_left.orientation(&iz_ray.point_by_ratio(1.)) == Orientation::Before
     }
 
     fn find_split_vertex(
@@ -530,27 +506,27 @@ impl Skeleton {
                 li_ray.intersect(&vertex_vector[cv_real].unwrap_ray())
             };
             if is_init {
-                if orient && base_ray.orientation(&real_intersection) < 0 {
+                if orient && base_ray.orientation(&real_intersection) == Orientation::After {
                     continue;
                 }
-                if !orient && base_ray.orientation(&real_intersection) > 0 {
+                if !orient && base_ray.orientation(&real_intersection) == Orientation::Before {
                     continue;
                 }
             } else if orient {
                 if vertex_vector[sv_real]
                     .unwrap_ray()
                     .orientation(&real_intersection)
-                    >= 0
+                    != Orientation::After
                 {
                     continue;
                 }
-                if base_ray.orientation(&real_intersection) < 0 {
+                if base_ray.orientation(&real_intersection) == Orientation::After {
                     continue;
                 }
                 if vertex_vector[srv_real]
                     .unwrap_ray()
                     .orientation(&real_intersection)
-                    < 0
+                    == Orientation::After
                 {
                     continue;
                 }
@@ -558,17 +534,17 @@ impl Skeleton {
                 if vertex_vector[sv_real]
                     .unwrap_ray()
                     .orientation(&real_intersection)
-                    <= 0
+                    != Orientation::Before
                 {
                     continue;
                 }
-                if base_ray.orientation(&real_intersection) > 0 {
+                if base_ray.orientation(&real_intersection) == Orientation::Before {
                     continue;
                 }
                 if vertex_vector[srv_real]
                     .unwrap_ray()
                     .orientation(&real_intersection)
-                    > 0
+                    == Orientation::Before
                 {
                     continue;
                 }
@@ -888,4 +864,27 @@ impl Skeleton {
         }
         ret
     }
+}
+
+fn multipolygon_from_linestrings(lss: Vec<LineString>) -> MultiPolygon {
+    MultiPolygon::new(
+        lss.into_iter()
+            .filter_map(|ls| {
+                let winding = ls.winding_order()?;
+                Some((winding, ls))
+            })
+            .fold(Vec::<Polygon>::new(), |mut acc, (winding, ls)| {
+                match winding {
+                    WindingOrder::Clockwise => {
+                        if let Some(p) = acc.iter_mut().find(|p| p.contains(&ls)) {
+                            p.interiors_push(ls);
+                        }
+                    }
+                    WindingOrder::CounterClockwise => {
+                        acc.push(Polygon::new(ls, vec![]));
+                    }
+                }
+                acc
+            }),
+    )
 }

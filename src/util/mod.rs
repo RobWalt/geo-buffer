@@ -8,6 +8,13 @@ mod ray;
 pub use coordinate::Coordinate;
 pub use ray::Ray;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Orientation {
+    After,
+    Collinear,
+    Before,
+}
+
 const EPS: f64 = 1e-9;
 
 pub(crate) fn feq(x: f64, y: f64) -> bool {

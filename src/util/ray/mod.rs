@@ -104,13 +104,10 @@ impl Ray {
             if orient {
                 ray = ray * -1.;
             }
-        } else {
-            if orient && self.angle.outer_product(&ray) > 0.0 {
-                ray = ray * -1.0;
-            }
-            if !orient && self.angle.outer_product(&ray) < 0.0 {
-                ray = ray * -1.0;
-            }
+        } else if (orient && self.angle.outer_product(&ray) > 0.0)
+            || (!orient && self.angle.outer_product(&ray) < 0.0)
+        {
+            ray = ray * -1.0;
         }
         // else {
         //     if orient == true && tmp_angle.outer_product(&ray) > 0.0 {ray = ray*-1.0;}
@@ -142,7 +139,7 @@ impl Ray {
     /// ```
     pub fn is_contain(&self, rhs: &Coordinate) -> bool {
         if self.is_degenerated() {
-            return feq(self.origin.0, rhs.0) && feq(self.origin.1, rhs.1);
+            return self.origin.equal(rhs);
         }
         feq((*rhs - self.origin).outer_product(&self.angle), 0.)
     }
@@ -161,34 +158,37 @@ impl Ray {
     /// use geo_buffer::{Coordinate, Ray};
     ///
     /// let c1 = (1., 2.).into();
-    /// let c2 = (2., 3.).into();
-    /// let r1 = Ray::new(c1, c2);
+    /// let d1 = (2., 3.).into();
+    /// let r1 = Ray::new(c1, d1);
     ///
-    /// assert!(r1.is_contain(&(3., 4.).into()));
+    /// let c2 = (1., 2.).into();
+    /// let d2 = (3., 0.).into();
+    /// let r2 = Ray::new(c2, d2);
+    ///
+    /// let c3 = (2., 1.).into();
+    /// let d3 = (0., 3.).into();
+    /// let r3 = Ray::new(c3, d3);
+    ///
+    /// assert!(r1.is_intersect(&r1));
+    /// assert!(r1.is_intersect(&r2));
+    /// assert!(r1.is_intersect(&r3));
     /// ```
     pub fn is_intersect(&self, rhs: &Ray) -> bool {
         let op = self.angle.outer_product(&rhs.angle);
         if feq(op, 0.0) {
-            if self.is_contain(&rhs.origin) {
-                return true;
-            }
-            if rhs.is_contain(&self.origin) {
-                return true;
-            }
-            return false;
+            return self.is_contain(&rhs.origin) || rhs.is_contain(&self.origin);
         }
         let i = (rhs.origin - self.origin).outer_product(&rhs.angle)
             / self.angle.outer_product(&rhs.angle);
         let j = (rhs.origin - self.origin).outer_product(&self.angle)
             / self.angle.outer_product(&rhs.angle);
-        if fgeq(i, 0.) && fgeq(j, 0.) {
-            return true;
-        }
-        false
+        fgeq(i, 0.) && fgeq(j, 0.)
     }
 
     /// Returns a common point of the given rays. If they have more than 2 common points, then returns a
     /// middle point of the starting points of the given rays.
+    ///
+    /// If the rays do not intersect, then also returns the middle point of the starting points.
     ///
     /// Note that this function considers the rays as a open-ended line.
     /// That is, if the common point lies on the extended line(s) of them, this function returns the point.
@@ -199,13 +199,23 @@ impl Ray {
     /// use geo_buffer::{Coordinate, Ray};
     ///
     /// let c1 = (0., 0.).into();
-    /// let c2 = (1., 1.).into();
-    /// let c3 = (4., 0.).into();
-    /// let c4 = (0., 4.).into();
-    /// let r1 = Ray::new(c1, c2);
-    /// let r2 = Ray::new(c3, c4);
+    /// let d1 = (1., 1.).into();
+    /// let r1 = Ray::new(c1, d1);
+    ///
+    /// let c2 = (4., 0.).into();
+    /// let d2 = (0., 4.).into();
+    /// let r2 = Ray::new(c2, d2);
+    ///
+    /// let c3 = (-1., 0.).into();
+    /// let d3 = (-1., 0.).into();
+    /// let r3 = Ray::new(c3, d3);
+    ///
+    /// let c4 = (1., 0.).into();
+    /// let d4 = (1., 0.).into();
+    /// let r4 = Ray::new(c4, d4);
     ///
     /// assert!(r1.intersect(&r2).equal(&(2., 2.).into()));
+    /// assert_eq!(r3.intersect(&r4), (0., 0.).into());
     ///
     /// ```
     pub fn intersect(&self, rhs: &Ray) -> Coordinate {
@@ -249,10 +259,7 @@ impl Ray {
     /// ```
     pub fn is_parallel(&self, rhs: &Ray) -> bool {
         let op = self.angle.outer_product(&rhs.angle);
-        if feq(op, 0.0) && !self.is_contain(&rhs.origin) {
-            return true;
-        }
-        false
+        feq(op, 0.0) && !self.is_contain(&rhs.origin)
     }
 
     pub(crate) fn is_degenerated(&self) -> bool {
@@ -274,21 +281,17 @@ impl Ray {
     /// assert!(r1.point_by_ratio(1.).equal(&(0.6, 0.8).into()));
     /// ```
     pub fn normalize(&mut self) {
-        if self.is_degenerated() {
-            return;
+        if !self.is_degenerated() {
+            self.angle = self.angle / self.angle.norm();
         }
-        self.angle = self.angle / self.angle.norm();
     }
 
-    pub(crate) fn orientation(&self, rhs: &Coordinate) -> i32 {
-        let res = self.angle.outer_product(&(*rhs - self.origin));
-        if feq(res, 0.) {
-            return 0;
+    pub(crate) fn orientation(&self, rhs: &Coordinate) -> Orientation {
+        match self.angle.outer_product(&(*rhs - self.origin)) {
+            res if feq(res, 0.) => Orientation::Collinear,
+            res if fgt(res, 0.) => Orientation::Before,
+            _ => Orientation::After,
         }
-        if fgt(res, 0.) {
-            return 1;
-        }
-        -1
     }
 
     /// Returns the reversed ray of the given ray. The returned ray has the same starting point
